@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 import os
+import base64
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -9,6 +9,7 @@ import streamlit as st
 
 
 DATA_PATH = Path("data/admissions_2025_sichuan_physics_v4.csv")
+HERO_IMAGE_PATH = Path("assets/hero.jpg")
 
 DISCLAIMER = (
     "本项目仅用于课程项目演示。数据为四川省 2025 年物理类，"
@@ -22,7 +23,161 @@ st.set_page_config(page_title="RankPilot", layout="wide")
 
 
 @st.cache_data
+def load_hero_image() -> str:
+    if not HERO_IMAGE_PATH.exists():
+        return ""
+    return base64.b64encode(HERO_IMAGE_PATH.read_bytes()).decode("utf-8")
+
+
+def render_hero() -> None:
+    hero_image = load_hero_image()
+    image_layer = (
+        f"background-image: url('data:image/jpeg;base64,{hero_image}');"
+        if hero_image
+        else "background: linear-gradient(135deg, #1f2937, #020617);"
+    )
+    st.markdown(
+        f"""
+        <style>
+        .block-container {{
+            max-width: 1180px;
+            padding-top: 1.5rem;
+        }}
+        .rankpilot-hero {{
+            position: relative;
+            min-height: 520px;
+            border-radius: 0;
+            overflow: hidden;
+            margin: 0 0 28px 0;
+            background: #020617;
+            box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+        }}
+        .rankpilot-hero::before {{
+            content: "";
+            position: absolute;
+            inset: 0;
+            {image_layer}
+            background-size: cover;
+            background-position: center left;
+            filter: saturate(1.06) contrast(1.02);
+            transform: scale(1.01);
+        }}
+        .rankpilot-hero::after {{
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 34%, rgba(0,0,0,0.42) 50%, rgba(0,0,0,0.82) 67%, #000 100%),
+                linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.10) 58%, rgba(0,0,0,0.68) 100%);
+            backdrop-filter: blur(0px);
+        }}
+        .rankpilot-hero-panel {{
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 42%;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(0,0,0,0.12), rgba(0,0,0,0.96) 52%, #000 100%);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }}
+        .rankpilot-hero-content {{
+            position: absolute;
+            z-index: 2;
+            right: 5.5%;
+            top: 50%;
+            transform: translateY(-50%);
+            width: min(420px, 38vw);
+            color: #ffffff;
+            text-align: left;
+        }}
+        .rankpilot-kicker {{
+            font-size: 0.84rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.62);
+            margin-bottom: 18px;
+        }}
+        .rankpilot-title {{
+            font-size: clamp(3.4rem, 7vw, 6.4rem);
+            line-height: 0.92;
+            font-weight: 760;
+            letter-spacing: 0;
+            margin: 0;
+        }}
+        .rankpilot-subtitle {{
+            margin-top: 22px;
+            font-size: clamp(1rem, 1.6vw, 1.28rem);
+            line-height: 1.8;
+            color: rgba(255,255,255,0.82);
+            letter-spacing: 0.02em;
+        }}
+        .rankpilot-scroll-hint {{
+            position: absolute;
+            z-index: 2;
+            right: 5.5%;
+            bottom: 30px;
+            color: rgba(255,255,255,0.52);
+            font-size: 0.88rem;
+        }}
+        .rankpilot-section-title {{
+            margin: 8px 0 18px 0;
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: #111827;
+        }}
+        @media (max-width: 760px) {{
+            .rankpilot-hero {{
+                min-height: 620px;
+            }}
+            .rankpilot-hero::after {{
+                background:
+                    linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.46) 42%, rgba(0,0,0,0.96) 72%, #000 100%);
+            }}
+            .rankpilot-hero-panel {{
+                width: 100%;
+                height: 55%;
+                top: auto;
+                bottom: 0;
+                background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,0.92) 34%, #000 100%);
+            }}
+            .rankpilot-hero-content {{
+                left: 26px;
+                right: 26px;
+                top: auto;
+                bottom: 88px;
+                width: auto;
+                transform: none;
+            }}
+            .rankpilot-scroll-hint {{
+                left: 26px;
+                right: auto;
+            }}
+        }}
+        </style>
+        <section class="rankpilot-hero">
+            <div class="rankpilot-hero-panel"></div>
+            <div class="rankpilot-hero-content">
+                <div class="rankpilot-kicker">GAOKAO ADMISSION ASSISTANT</div>
+                <h1 class="rankpilot-title">RankPilot</h1>
+                <div class="rankpilot-subtitle">选择自有方寸，未来满目星光。</div>
+            </div>
+            <div class="rankpilot-scroll-hint">向下生成你的冲稳保方案</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+@st.cache_data
 def load_data() -> pd.DataFrame:
+    if not DATA_PATH.exists():
+        st.error(
+            "未找到数据文件："
+            f"{DATA_PATH}。请确认已上传 data/admissions_2025_sichuan_physics_v4.csv，"
+            "并保持 data 文件夹与 app.py 在同一项目目录下。"
+        )
+        st.stop()
     df = pd.read_csv(DATA_PATH)
     df["min_score"] = pd.to_numeric(df["min_score"], errors="coerce")
     df["min_rank"] = pd.to_numeric(df["min_rank"], errors="coerce")
@@ -63,6 +218,13 @@ def classify_by_rank(rank_diff: float | None, choice_type: str) -> str:
     return "位次较稳"
 
 
+def parse_keywords(keyword: str) -> list[str]:
+    if not keyword.strip():
+        return []
+    parts = re.split(r"[,\s，、]+|或者|或", keyword.strip())
+    return [part.strip() for part in parts if part.strip()]
+
+
 def filter_data(
     df: pd.DataFrame,
     cities: list[str],
@@ -83,10 +245,13 @@ def filter_data(
         pattern = "|".join(school_tags)
         result = result[result["school_type"].fillna("").str.contains(pattern, regex=True)]
 
-    if keyword.strip():
-        result = result[
-            result["major_or_group"].fillna("").str.contains(keyword.strip(), case=False, regex=False)
-        ]
+    keywords = parse_keywords(keyword)
+    if keywords:
+        major_text = result["major_or_group"].fillna("")
+        mask = False
+        for item in keywords:
+            mask = mask | major_text.str.contains(item, case=False, regex=False)
+        result = result[mask]
 
     if not include_group_lines:
         result = result[~result["note"].fillna("").str.contains("非具体专业最低分", regex=False)]
@@ -225,8 +390,8 @@ def build_prompt(result: pd.DataFrame, score: int, risk_mode: str, keyword: str)
 def main() -> None:
     df = load_data()
 
-    st.title("RankPilot：四川高考志愿冲稳保模拟器")
-    st.caption("基于 2025 年四川物理类录取线的分数差模拟工具")
+    render_hero()
+    st.markdown('<div class="rankpilot-section-title">生成冲稳保方案</div>', unsafe_allow_html=True)
     st.warning(DISCLAIMER)
 
     with st.expander("使用说明", expanded=False):
@@ -253,9 +418,9 @@ def main() -> None:
         cities = st.multiselect("城市偏好", sorted(df["city"].dropna().unique().tolist()))
         school_tags = st.multiselect("学校标签", ["985", "211", "双一流", "财经", "工科", "师范", "综合"])
         schools = st.multiselect("指定学校（可选）", sorted(df["school"].dropna().unique().tolist()))
-        keyword = st.text_input("专业关键词", placeholder="例如：计算机、金融、统计、电子信息、临床")
+        keyword = st.text_input("专业关键词", placeholder="可输入多个关键词，例如：计算机，金融 或 统计 电子信息 临床")
         include_group_lines = st.checkbox("包含专业组/院校最低线等非具体专业线", value=True)
-        use_ai = st.checkbox("尝试调用大模型生成解释（需要配置阿里云百炼 API Key）", value=False)
+        use_ai = st.checkbox("使用大模型解释", value=False)
 
         run = st.button("生成冲稳保方案", type="primary", use_container_width=True)
 
@@ -307,21 +472,25 @@ def main() -> None:
         st.dataframe(result[display_cols], use_container_width=True, hide_index=True)
 
         st.subheader("分数差可视化")
-        chart_df = result.copy()
-        chart_df["label"] = chart_df["school"] + "｜" + chart_df["major_or_group"].astype(str)
-        chart_df = chart_df.sort_values("score_diff", ascending=True).tail(25)
-        fig = px.bar(
-            chart_df,
-            x="score_diff",
-            y="label",
-            color="choice_type",
-            orientation="h",
-            hover_data=["school", "major_or_group", "min_score", "city", "note"],
-            title="你的分数与录取线的差值（分数差 = 你的分数 - 最低分）",
-            color_discrete_map={"冲": "#d95f02", "稳": "#1b9e77", "保": "#377eb8"},
-        )
-        fig.update_layout(yaxis_title="", xaxis_title="分数差", height=650)
-        st.plotly_chart(fig, use_container_width=True)
+        chart_df = result[result["score_diff"].between(-20, 20)].copy()
+        if chart_df.empty:
+            st.info("当前筛选结果中没有分数差在 -20 到 +20 之间的候选项，暂不显示图表。")
+        else:
+            st.caption("图表仅展示分数差在 -20 到 +20 之间的候选项，避免极端分差挤占视图。")
+            chart_df = chart_df.sort_values("score_diff", ascending=True).head(35)
+            chart_df["label"] = chart_df["school"] + "｜" + chart_df["major_or_group"].astype(str)
+            fig = px.bar(
+                chart_df,
+                x="score_diff",
+                y="label",
+                color="choice_type",
+                orientation="h",
+                hover_data=["school", "major_or_group", "min_score", "city", "note"],
+                title="候选专业分数差分布（仅显示 -20 到 +20 分）",
+                color_discrete_map={"冲": "#d95f02", "稳": "#1b9e77", "保": "#377eb8"},
+            )
+            fig.update_layout(yaxis_title="", xaxis_title="分数差", height=650)
+            st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("解释建议")
         rule_text = rule_based_advice(result, score, risk_mode)
